@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Slobs client example</title>
-  <link rel="stylesheet" href="vendor/font-awesome/css/font-awesome.min.css">
-  <script src="vendor/vue.js"></script>
-  <script src="vendor/sockjs.js"></script>
-  <script src="vendor/renderjson.js"></script>
+  <link rel="stylesheet" href="vendor/font-awesome/css/all.min.css">
+  <script src="vendor/vue/vue.min.js"></script>
+  <script src="vendor/sockjs/sockjs.min.js"></script>
+  <script src="vendor/renderjson/renderjson.js"></script>
 </head>
 <body>
 
@@ -59,6 +59,16 @@
 
 
     <div class="deck">
+      <div
+          class="recording deck-button"
+          :class="{ active: recordingState.recording }"
+          @click="toggleRecording()"
+      >
+        <span class="fa"
+        v-bind:class = "(recordingState.recording )? 'fa-stop' : 'fa-video'"></span>
+        <span class="name">{{ !recordingState.recording ? 'Record' : 'Stop' }}</span>
+      </div>
+
 
       <div
           class="scene deck-button"
@@ -66,7 +76,7 @@
           v-for="scene in scenes"
           @click="switchScene(scene.id)"
       >
-        <span class="fa fa-picture-o"></span>
+        <span class="fa fa-photo-film"></span>
         <span class="name">{{ scene.name }}</span>
       </div>
 
@@ -125,7 +135,7 @@
     data: {
       connectionStatus: 'disconnected',
       token: '',
-      url: `http://127.0.0.1:${PORT}/api`, //`http://${location.hostname}:${PORT}/api`,
+      url: `http://${location.hostname}:${PORT}/api`,
       scenes: [],
       audioSources: [],
       sceneItems: [],
@@ -135,7 +145,10 @@
       socket: null,
       page: 'scenes',
       requestString: '',
-      topPanelIsVisible: true
+      topPanelIsVisible: true,
+      recordingState: {
+        recording:false
+      }
     },
 
     mounted() {
@@ -166,6 +179,7 @@
 
         this.socket.onclose = (e) => {
           this.connectionStatus = 'disconnected';
+          this.topPanelIsVisible = true;
           alert('disconnected: ' + e.reason);
           console.log('close', e);
         };
@@ -173,6 +187,7 @@
 
 
       onConnectionHandler() {
+        this.topPanelIsVisible = false;
         this.connectionStatus = 'connected';
 
         this.request('ScenesService', 'getScenes').then(scenes => {
@@ -183,6 +198,10 @@
           const scene = this.scenes.find(scene => scene.id === id);
           scene.isActive = true;
           this.onSceneSwitchedHandler(scene);
+        });
+
+        this.subscribe('StreamingService', 'recordingStatusChange', recordingState => {
+          this.onRecordingStatusHandler(recordingState);
         });
 
         this.subscribe('ScenesService', 'sceneSwitched', activeScene => {
@@ -203,7 +222,7 @@
 
         this.subscribe('ScenesService', 'itemAdded', scenItem => {
           this.onSceneItemAdded(scenItem);
-      });
+        });
 
         this.subscribe('ScenesService', 'itemUpdated', scenItem => {
           this.onSceneItemUpdateHandler(scenItem);
@@ -313,6 +332,12 @@
         this.request('AudioService', 'getSourcesForCurrentScene').then(sources => this.audioSources = sources);
         this.request(activeScene.resourceId, 'getItems').then(items => this.sceneItems = items);
       },
+      toggleRecording(){
+        this.request('StreamingService', 'toggleRecording');
+      },
+      onRecordingStatusHandler(recordingState) {
+        this.recordingState.recording= recordingState=="recording";
+      },
 
 
       onSourceUpdatedHandler(sourceModel) {
@@ -357,11 +382,14 @@
       }
 
     }
-  })
+  });
+  if (app.token) {
+    app.connect();
+  }
 </script>
 <style>
 
-  @import 'vendor/bootstrap.css';
+  @import 'vendor/bootstrap/css/bootstrap.css';
 
   body {
     background: #141418;
@@ -469,6 +497,7 @@
   }
 
 
+  .deck-button.recording,
   .deck-button.active {
     color: white;
     background: linear-gradient(to bottom, #517878, #243636);
@@ -493,6 +522,13 @@
   .deck-button.scene-item.active,
   .deck-button.audio-source.active {
     background: linear-gradient(to bottom, #00C7F8, #006BD1);
+  }
+
+  .deck-button.recording {
+    background: linear-gradient(to bottom, #13c000, #006c0d);
+  }
+  .deck-button.recording.active {
+    background: linear-gradient(to bottom, #f80000, #d10000);
   }
 
   .console textarea {
